@@ -5,7 +5,7 @@ pragma solidity ^0.8.19;
 // Withdraw funds
 //
 
-// import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 import {PriceConverter} from "./PriceConverter.sol";
 
@@ -15,6 +15,7 @@ contract FundMe {
     using PriceConverter for uint256;
 
     address[] public funders;
+
     mapping(address funder => uint256 amountFunded)
         public addressToAmountFunded;
 
@@ -23,14 +24,17 @@ contract FundMe {
     // immutables are set once in a function, or set once outside of their declaration
     address public immutable i_owner;
 
-    constructor() {
+    AggregatorV3Interface private s_priceFeed;
+
+    constructor(address priceFeed) {
         i_owner = msg.sender;
+        s_priceFeed = AggregatorV3Interface(priceFeed);
     }
 
     function fund() public payable {
         // 1. How do we send ETH to this contract
         require(
-            msg.value.getConversionRate() >= MINIMUM_USD,
+            msg.value.getConversionRate(s_priceFeed) >= MINIMUM_USD,
             "Not enough ETH sent"
         );
         funders.push(msg.sender);
@@ -58,6 +62,10 @@ contract FundMe {
             value: address(this).balance
         }("");
         require(callSuccess, "Call failed");
+    }
+
+    function getVersion() public view returns (uint256) {
+        return PriceConverter.getVersion(s_priceFeed);
     }
 
     modifier only_Owner() {
